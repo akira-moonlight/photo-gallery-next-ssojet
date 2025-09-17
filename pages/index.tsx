@@ -1,13 +1,15 @@
 import type { NextPage } from "next";
 import Head from "next/head";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
+import { signIn } from "next-auth/react";
 import Bridge from "../components/Icons/Bridge";
 import Logo from "../components/Icons/Logo";
 import Modal from "../components/Modal";
-import cloudinary from "../utils/cloudinary";
+import Header from "../components/Header";
+import getResults from "../utils/cachedImages";
 import getBase64ImageUrl from "../utils/generateBlurPlaceholder";
 import type { ImageProps } from "../utils/types";
 import { useLastViewedPhoto } from "../utils/useLastViewedPhoto";
@@ -16,8 +18,10 @@ const Home: NextPage = ({ images }: { images: ImageProps[] }) => {
   const router = useRouter();
   const { photoId } = router.query;
   const [lastViewedPhoto, setLastViewedPhoto] = useLastViewedPhoto();
+  const { data: session, status } = useSession();
+  const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
 
-  const lastViewedPhotoRef = useRef<HTMLAnchorElement>(null);
+  const lastViewedPhotoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // This effect keeps track of the last viewed photo in the modal to keep the index page in sync when the user navigates back
@@ -30,107 +34,161 @@ const Home: NextPage = ({ images }: { images: ImageProps[] }) => {
   return (
     <>
       <Head>
-        <title>Next.js Conf 2022 Photos</title>
+        <title>Photo Gallery - Secure Image Collection with SSOJet Authentication</title>
+        <meta
+          name="description"
+          content="A modern, responsive photo gallery built with Next.js and SSOJet OpenID Connect authentication. Features beautiful masonry layout, full-screen modal viewing, and secure access control."
+        />
+        <meta
+          name="keywords"
+          content="photo gallery, image collection, SSOJet, authentication, Next.js, React, secure gallery, OpenID Connect"
+        />
+        <meta
+          property="og:title"
+          content="Photo Gallery - Secure Image Collection with SSOJet Authentication"
+        />
+        <meta
+          property="og:description"
+          content="A modern, responsive photo gallery built with Next.js and SSOJet OpenID Connect authentication. Features beautiful masonry layout, full-screen modal viewing, and secure access control."
+        />
+        <meta
+          property="og:type"
+          content="website"
+        />
+        <meta
+          property="og:url"
+          content="https://your-domain.com"
+        />
         <meta
           property="og:image"
-          content="https://nextjsconf-pics.vercel.app/og-image.png"
+          content="https://your-domain.com/og-image.png"
+        />
+        <meta
+          name="twitter:card"
+          content="summary_large_image"
+        />
+        <meta
+          name="twitter:title"
+          content="Photo Gallery - Secure Image Collection with SSOJet Authentication"
+        />
+        <meta
+          name="twitter:description"
+          content="A modern, responsive photo gallery built with Next.js and SSOJet OpenID Connect authentication. Features beautiful masonry layout, full-screen modal viewing, and secure access control."
         />
         <meta
           name="twitter:image"
-          content="https://nextjsconf-pics.vercel.app/og-image.png"
+          content="https://your-domain.com/og-image.png"
+        />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0"
+        />
+        <meta
+          name="author"
+          content="Photo Gallery Team"
+        />
+        <meta
+          name="robots"
+          content="index, follow"
         />
       </Head>
-      <main className="mx-auto max-w-[1960px] p-4">
-        {photoId && (
+      <Header />
+      <main className="mx-auto max-w-[1960px] p-4 min-h-[calc(100vh-4rem)]">
+        {selectedPhotoId !== null && (
           <Modal
             images={images}
+            selectedPhotoId={selectedPhotoId}
             onClose={() => {
-              setLastViewedPhoto(photoId);
+              setLastViewedPhoto(selectedPhotoId);
+              setSelectedPhotoId(null);
             }}
+            onChangePhoto={(newPhotoId) => setSelectedPhotoId(newPhotoId)}
           />
         )}
-        <div className="columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4">
-          <div className="after:content relative mb-5 flex h-[629px] flex-col items-center justify-end gap-4 overflow-hidden rounded-lg bg-white/10 px-6 pb-16 pt-64 text-center text-white shadow-highlight after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:shadow-highlight lg:pt-0">
-            <div className="absolute inset-0 flex items-center justify-center opacity-20">
-              <span className="flex max-h-full max-w-full items-center justify-center">
-                <Bridge />
-              </span>
-              <span className="absolute left-0 right-0 bottom-0 h-[400px] bg-gradient-to-b from-black/0 via-black to-black"></span>
-            </div>
-            <Logo />
-            <h1 className="mt-8 mb-4 text-base font-bold uppercase tracking-widest">
-              2022 Event Photos
-            </h1>
-            <p className="max-w-[40ch] text-white/75 sm:max-w-[32ch]">
-              Our incredible Next.js community got together in San Francisco for
-              our first ever in-person conference!
-            </p>
-            <a
-              className="pointer z-10 mt-6 rounded-lg border border-white bg-white px-3 py-2 text-sm font-semibold text-black transition hover:bg-white/10 hover:text-white md:mt-4"
-              href="https://vercel.com/new/clone?repository-url=https://github.com/vercel/next.js/tree/canary/examples/with-cloudinary&project-name=nextjs-image-gallery&repository-name=with-cloudinary&env=NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,CLOUDINARY_API_KEY,CLOUDINARY_API_SECRET,CLOUDINARY_FOLDER&envDescription=API%20Keys%20from%20Cloudinary%20needed%20to%20run%20this%20application"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Clone and Deploy
-            </a>
+        
+        {status === "loading" ? (
+          <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+            <div className="text-white text-xl">Loading...</div>
           </div>
+        ) : session ? (
+          <div className="columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4">
+         
           {images.map(({ id, public_id, format, blurDataUrl }) => (
-            <Link
+            <div
               key={id}
-              href={`/?photoId=${id}`}
-              as={`/p/${id}`}
               ref={id === Number(lastViewedPhoto) ? lastViewedPhotoRef : null}
-              shallow
               className="after:content group relative mb-5 block w-full cursor-zoom-in after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:shadow-highlight"
             >
-              <Image
-                alt="Next.js Conf photo"
-                className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
-                style={{ transform: "translate3d(0, 0, 0)" }}
-                placeholder="blur"
-                blurDataURL={blurDataUrl}
-                src={`https://res.cloudinary.com/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload/c_scale,w_720/${public_id}.${format}`}
-                width={720}
-                height={480}
-                sizes="(max-width: 640px) 100vw,
-                  (max-width: 1280px) 50vw,
-                  (max-width: 1536px) 33vw,
-                  25vw"
-              />
-            </Link>
+              <button
+                onClick={() => setSelectedPhotoId(id)}
+                className="w-full h-full"
+              >
+                <Image
+                  alt="Next.js Conf photo"
+                  className="transform rounded-lg brightness-90 transition will-change-auto group-hover:brightness-110"
+                  style={{ transform: "translate3d(0, 0, 0)" }}
+                  placeholder="blur"
+                  blurDataURL={blurDataUrl}
+                  src={images.find(img => img.id === id)?.urls?.small || ''}
+                  width={720}
+                  height={480}
+                  sizes="(max-width: 640px) 100vw,
+                    (max-width: 1280px) 50vw,
+                    (max-width: 1536px) 33vw,
+                    25vw"
+                />
+              </button>
+            </div>
           ))}
-        </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-start h-[calc(100vh-4rem)] pt-20">
+            <div className="text-center max-w-md mx-auto px-4">
+              <div className="mb-6">
+             
+                <h1 className="mt-6 mb-3 text-3xl font-bold uppercase tracking-widest text-white">
+                  Photo Gallery
+                </h1>
+                <p className="text-white/75 text-sm leading-relaxed">
+                  Please sign in to view the photo gallery
+                </p>
+              </div>
+              <button
+                onClick={() => signIn("ssojet")}
+                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-base font-semibold w-full"
+              >
+                Sign In to View Photos
+              </button>
+            </div>
+            <footer className="p-4 text-center text-white/60 text-sm">
+              Thank you to{" "}
+              <a
+                href="https://ssojet.com/"
+                target="_blank"
+                className="font-semibold hover:text-white"
+                rel="noreferrer"
+              >
+                SSOJET
+              </a>{" "}
+              for the easy implementation.
+            </footer>
+          </div>
+        )}
       </main>
-      <footer className="p-6 text-center text-white/80 sm:p-12">
-        Thank you to{" "}
-        <a
-          href="https://edelsonphotography.com/"
-          target="_blank"
-          className="font-semibold hover:text-white"
-          rel="noreferrer"
-        >
-          Josh Edelson
-        </a>
-        ,{" "}
-        <a
-          href="https://www.newrevmedia.com/"
-          target="_blank"
-          className="font-semibold hover:text-white"
-          rel="noreferrer"
-        >
-          Jenny Morgan
-        </a>
-        , and{" "}
-        <a
-          href="https://www.garysextonphotography.com/"
-          target="_blank"
-          className="font-semibold hover:text-white"
-          rel="noreferrer"
-        >
-          Gary Sexton
-        </a>{" "}
-        for the pictures.
-      </footer>
+      {session && (
+        <footer className="p-6 text-center text-white/80 sm:p-12">
+          Thank you to{" "}
+          <a
+            href="https://ssojet.com/"
+            target="_blank"
+            className="font-semibold hover:text-white"
+            rel="noreferrer"
+          >
+            SSOJET
+          </a>{" "}
+          for the easy implementation.
+        </footer>
+      )}
     </>
   );
 };
@@ -138,11 +196,7 @@ const Home: NextPage = ({ images }: { images: ImageProps[] }) => {
 export default Home;
 
 export async function getStaticProps() {
-  const results = await cloudinary.v2.search
-    .expression(`folder:${process.env.CLOUDINARY_FOLDER}/*`)
-    .sort_by("public_id", "desc")
-    .max_results(400)
-    .execute();
+  const results = await getResults();
   let reducedResults: ImageProps[] = [];
 
   let i = 0;
@@ -151,8 +205,10 @@ export async function getStaticProps() {
       id: i,
       height: result.height,
       width: result.width,
-      public_id: result.public_id,
-      format: result.format,
+      public_id: result.id, // Use id as public_id for compatibility
+      format: 'jpg', // Default format for Unsplash images
+      urls: result.urls,
+      alt_description: result.alt_description,
     });
     i++;
   }
